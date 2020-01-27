@@ -1,0 +1,288 @@
+---
+title: "Building a simple neural network using Keras and Tensorflow"
+author: "Leon Jessen"
+date: "10 jan 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+A minimal example for building your first simple artificial neural network using [Keras and TensorFlow for R](https://tensorflow.rstudio.com/keras/) - Right, let's get to it!
+
+# Install Keras and TensorFlow for R
+
+Before we begin, we need to install [Keras and TensorFlow for R](https://tensorflow.rstudio.com/keras/) as follows:
+
+```{r,warning = F}
+# install.packages("keras")
+```
+
+TensorFlow is the default backend engine. TensorFlow and Keras can be installed as follows:
+
+```{r, warning = F}
+# library(keras)
+# install_keras()
+```
+
+We also need to install [`TidyVerse`](https://www.tidyverse.org/):
+
+```{r,warning = F}
+# install.packages("tidyverse")
+```
+
+# Load libraries
+
+```{r, warning = F}
+# Load packages 
+library("ggplot2")
+library("keras")
+library("tidyr")
+library("dplyr")
+library("stringr")
+```
+
+# Data
+
+[The famous Iris flower data set](https://en.wikipedia.org/wiki/Iris_flower_data_set) contains data to quantify the morphologic variation of Iris flowers of three related species. In other words - A total of 150 observations of 4 input features `Sepal.Length`, `Sepal.Width`, `Petal.Length` and `Petal.Width` and 3 output classes `setosa` `versicolor` and `virginica`, with 50 observations in each class. 
+
+```{r}
+str(iris)
+head(iris)
+summary(iris)
+```
+
+The distributions of the feature values looks like so:
+
+```{r}
+iris %>% as_tibble %>% gather(feature, value, -Species) %>%
+  ggplot(aes(x = feature, y = value, fill = Species)) +
+  geom_violin(alpha = 0.5, scale = "width", position = position_dodge(width = 0.9)) +
+  geom_boxplot(alpha = 0.5, width = 0.2, position = position_dodge(width = 0.9)) +
+  theme_bw()
+```
+
+# PCA 
+
+We can do a simple dimension reduction using PCA to get an impression of the the degree of separation inbetween the three classes. 
+
+- As can be seen, nearly all of the variance (exactly 95%) is being explained by the two first dimensions.
+
+- Setosa is clearly separated whereas virginical and versicolor are more intertwined. 
+
+```{r}
+library(factoextra)
+## Perform a pca using prcomp 
+iris.pca = prcomp(iris[,1:4], center = TRUE, scale.=TRUE, retx = TRUE)
+summary(iris.pca)
+fviz_eig(iris.pca) # Scree plot 
+fviz_pca_var(iris.pca) # Graph of variables 
+fviz_pca_ind(iris.pca) # graph of individuals
+ind <- cbind(iris.pca$x,Species = iris$Species) # graph of individuals in base R 
+plot(ind[,1], ind[,2], pch = 19,  
+     xlab="PC1",ylab="PC2", col = ind[,5])
+abline(h=0, v=0, lty = 2)
+text(ind[,1], ind[,2], labels=rownames(ind),
+     cex=0.7, pos = 3)
+legend(2.2, 2, legend=c("Setosa", "Versicolor", "Virginica"),
+       col=c("black", "red","green"),lty =1, cex=0.8)
+```
+
+# Aim
+
+Our aim is to connect the 4 input features (`Sepal.Length`, `Sepal.Width`, `Petal.Length` and `Petal.Width`) to the correct output class (`setosa` `versicolor` and `virginica`) using an artificial neural network. For this task, we have chosen the following simple architecture with one input layer with 4 neurons (one for each feature), one hidden layer with 4 neurons and one output layer with 3 neurons (one for each class), all fully connected:
+
+<!-- <img src="img/architecture_visualisation.png" width="500px" style="display: block; margin: auto;" /> -->
+
+Our artificial neural network will have a total of 35 parameters: 4 for each input neuron connected to the hidden layer, plus an additional 4 for the associated first bias neuron and 3 for each of the hidden neurons connected to the output layer, plus an additional 3 for the associated second bias neuron. I.e. 4+4+4+4+3+3+3+3+3=35.
+
+
+# Prepare data
+
+We start with slightly wrangling the iris data set by renaming and scaling the features and converting character labels to numeric:
+
+```{r}
+nn_dat = iris %>% as_tibble %>%
+  mutate(sepal_l_feat = scale(Sepal.Length),
+         sepal_w_feat = scale(Sepal.Width),
+         petal_l_feat = scale(Petal.Length),
+         petal_w_feat = scale(Petal.Width),          
+         class_num    = as.numeric(Species) - 1, # factor, so = 0, 1, 2
+         class_label  = Species) %>%
+  select(contains("feat"), class_num, class_label)
+nn_dat %>% head(3)
+```
+Here, we use scaling such that the mean of each feature is 0 and the standard deviation is 1.
+
+Then, we split the iris data into a training and a test data set, setting aside 20% of the data for left out data partition, to be used for final performance evaluation:
+
+```{r}
+test_f = 0.20
+nn_dat = nn_dat %>%
+  mutate(partition = sample(c('train','test'), nrow(.), replace = TRUE, prob = c(1 - test_f, test_f)))
+```
+
+Based on the partition, we can now create training and test data
+
+```{r}
+x_train = nn_dat %>% filter(partition == 'train') %>% select(contains("feat")) %>% as.matrix
+y_train = nn_dat %>% filter(partition == 'train') %>% pull(class_num) %>% to_categorical(3)
+x_test  = nn_dat %>% filter(partition == 'test')  %>% select(contains("feat")) %>% as.matrix
+y_test  = nn_dat %>% filter(partition == 'test')  %>% pull(class_num) %>% to_categorical(3)
+```
+
+Thereby leading 
+
+```{r}
+x_train %>% head(3)
+y_train %>% head(3)
+length(x_train)
+length(y_train)
+length(x_test)
+length(y_test)
+```
+
+# Set the architecture
+
+We now set up the architecture of the ANN
+
+```{r}
+model = keras_model_sequential()
+model %>% 
+  layer_dense(units = 4, activation = 'relu', input_shape = 4) %>% 
+  layer_dense(units = 3, activation = 'softmax')
+model %>% summary
+```
+
+As expected we see 35 trainable parameters. Next, the architecture set in the model needs to be compiled:
+
+```{r}
+model %>% compile(
+  loss      = 'categorical_crossentropy',
+  optimizer = optimizer_rmsprop(),
+  metrics   = c('accuracy')
+)
+```
+
+
+# Train the Artificial Neural Network
+
+Lastly we fit the model and save the training progres in the history object. To train the model, we use a stochastic gradient descent algorithm. This is an optimization algorithm which is typically used to train ML algorithms, especially ANN (cf. GDB trees). The job of the algorithm is to find a set of internal model parameters that perform well against some performance measure such as logarithmic loss or mean squared error.The optimization algorithm is called “gradient descent“, where “gradient” refers to the calculation of an error gradient or slope of error and “descent” refers to the moving down along that slope towards some minimum level of error. The algorithm is iterative. This means that the search process occurs over multiple discrete steps, each step hopefully slightly improving the model parameters.
+Each step involves using the model with the current set of internal parameters to make predictions on some samples, comparing the predictions to the real expected outcomes, calculating the error, and using the error to update the internal model parameters. The update procedure is different from one ML to another but uses the backpropagation in the case of the ANN. To make it work, one has to specify the epochs i.e. the number of times each sample (i.e. row) of the training data will be used to update the model and the batch size i.e. the size of the batch which corresponds to the number of samples to go through before updating the model. The way to think about it is as one for-loop over the epochs i.e. over the training set with within another for-loop over each of the batch. The model will be updated every time a batch is being used so in total epochs $\times$ number of batchs (total number of samples in the training data/batch size). The batch size and epochs are not parameters of the model, they are parameters of the optimization algorithm and called hyperparameters.
+
+As expected the loss function is decreasing and the accuracy is increasing as the epoch increases.
+ 
+
+```{r}
+history = model %>% fit(
+  x = x_train, y = y_train,
+  epochs           = 200,
+  batch_size       = 20,
+  validation_split = 0
+)
+plot(history)
+```
+
+# Evaluate the performance of the model 
+
+```{r}
+perf = model %>% evaluate(x_test, y_test)
+print(perf)
+```
+
+# Predict on new data  
+
+We can use the predict() and predict_classes() function for predicting soft and hard classifications respectively:
+
+```{r}
+model %>% predict(x_test) %>% head
+model %>% predict_classes(x_test) %>% head
+```
+
+Lastly we can visualize the confusion matrix 
+
+```{r}
+plot_dat = nn_dat %>% filter(partition == 'test') %>%
+  mutate(class_num = factor(class_num),
+         y_pred    = factor(predict_classes(model, x_test)),
+         Correct   = factor(ifelse(class_num == y_pred, "Yes", "No")))
+plot_dat %>% select(-contains("feat")) %>% head(3)
+```
+
+```{r}
+title     = "Classification Performance of Artificial Neural Network"
+sub_title = str_c("Accuracy = ", round(perf$acc, 3) * 100, "%")
+x_lab     = "True iris class"
+y_lab     = "Predicted iris class"
+plot_dat %>% ggplot(aes(x = class_num, y = y_pred, colour = Correct)) +
+  geom_jitter() +
+  scale_x_discrete(labels = levels(nn_dat$class_label)) +
+  scale_y_discrete(labels = levels(nn_dat$class_label)) +
+  theme_bw() +
+  labs(title = title, subtitle = sub_title, x = x_lab, y = y_lab)
+```
+
+# Compare with XGBoost 
+
+```{r,warning = F}
+# for reproducibility
+set.seed(123)
+library(gbm)
+
+x_train_ <- nn_dat %>% filter(partition == "train") %>% select(ends_with("feat")) %>% as.data.frame()
+y_train_ <- nn_dat %>% filter(partition == "train") %>% pull(class_num) 
+x_test_ <- nn_dat %>% filter(partition == "test") %>% select(ends_with("feat"))
+y_test_ <- nn_dat %>% filter(partition == "test") %>% pull(class_num)
+
+train_data <- nn_dat %>% filter(partition == "train") %>% select(-class_num, -partition)
+test_data <- nn_dat %>% filter(partition == "test") %>% select(-class_num, -partition)
+
+# train GBM model
+gbm.fit <- gbm(
+  data = train_data, 
+  formula = class_label ~ .,
+  n.trees = 100, # number of trees
+  interaction.depth = 1, # depth of the tree
+  shrinkage = 0.001, # learning rate
+  bag.fraction = 0.5,
+  verbose = FALSE,
+  distribution = "multinomial"
+  )
+
+# print results
+print(gbm.fit)
+
+# Summary 
+summary(gbm.fit)
+
+# predict values for test data
+pred <- gbm.fit %>% predict(newdata = test_data,n.trees = gbm.fit$n.trees, type = "response")
+p.pred <- apply(pred, 1, which.max)
+
+pred[1:6,,]
+head(p.pred)
+  
+gbm_plot_dat = nn_dat %>% filter(partition == 'test') %>%
+  mutate(class_num = factor(class_num),
+         y_pred    = factor( apply(predict(gbm.fit,newdata = test_data,n.trees = gbm.fit$n.trees, type = "response"),1,which.max) ))
+
+levels(gbm_plot_dat$class_num) <- c("1","2","3")
+gbm_plot_dat2 = gbm_plot_dat %>% mutate(Correct   = factor(ifelse(class_num == y_pred, "Yes", "No")))
+
+
+gbm_plot_dat2 %>% select(-contains("feat")) %>% head(3)
+
+title     = "Classification Performance of GBM"
+# sub_title = str_c("Accuracy = ", round(perf$acc, 3) * 100, "%")
+x_lab     = "True iris class"
+y_lab     = "Predicted iris class"
+gbm_plot_dat2 %>% ggplot(aes(x = class_num, y = y_pred, colour = Correct)) +
+  geom_jitter() +
+  scale_x_discrete(labels = levels(nn_dat$class_label)) +
+  scale_y_discrete(labels = levels(nn_dat$class_label)) +
+  theme_bw() +
+  labs(title = title, x = x_lab, y = y_lab)
+
+
+```
