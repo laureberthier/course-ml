@@ -1,0 +1,294 @@
+---
+title: "Tree Methods"
+author: "LAEB"
+date: "12-11-2019"
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    toc_depth: 2
+  word_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+# Decision Tree Implementation in R
+
+We will implement a regression tree and a classification tree. The same car dataset used to implement PCA will be used. Detailed documentation about the dataset to be used can be found here: http://jse.amstat.org/datasets/04cars.txt
+
+```{r,warning = F}
+## Load packages 
+library(dplyr)
+library(caret) # splitting into training/test sets
+library(rpart) # preforming decision trees
+library(rpart.plot) # visualization decision trees 
+library(rattle) # Visualization decision trees
+library(purrr) # grids
+library(ipred) # bagging
+```
+
+```{r,warning = F}
+## Import dataset 
+cars04  <- readRDS(file = 
+                     '~/birwe_data/Data/playground/prepared-zone/methods-and-libraries/ml-reading-course/cars04.RData')
+## Look at dataset
+str(cars04)
+summary(cars04)
+head(cars04)
+```
+
+Before proceeding to the tree implementation, we split the data into a training and test sets uset the Caret package. 
+
+```{r,warning = F}
+## Splitting the data into a train and test set 
+# Set seed
+set.seed(123)
+# Do the split
+cars04.sub <- cars04  %>% 
+  select(-c("SUV","Wagon","Minivan","Pickup","AWD","RWD"))
+training.sample <- cars04.sub$Sports %>% createDataPartition(p = 0.8, list = FALSE)
+cars04.train.data  <- cars04.sub[training.sample, ]
+cars04.test.data <- cars04.sub[-training.sample, ]
+# Check rows of the train and test datasets
+nrow(cars04.train.data)
+nrow(cars04.test.data)
+# First rows of the train and test datasets 
+head(cars04.train.data)
+head(cars04.test.data)
+```
+
+There are many methodologies for constructing regression trees but one of the oldest is known as the classification and regression tree (CART) 
+approach developed by Breiman et al. (1984).  
+Basic regression trees partition a data set into smaller subgroups and then fit a simple constant for each observation in the subgroup. 
+The partitioning is achieved by successive binary partitions (aka recursive partitioning) based on the different predictors. 
+The constant to predict is based on the average response values for all observations that fall in that subgroup (if regression tree) or majority vote (if clasification tree).
+
+There exist different packages in R to implement decision trees. In the following we will use the rpart package to implement the tree and the rpart.plot and rattle plackages for visualizations. 
+
+
+## Regression Tree 
+
+Let's consider that we want to predict the Highway Mileage of a car. We fit a regression tree to the training dataset only and look at the output.
+
+```{r,warning = F}
+## Regression tree 
+reg.tree.fit <- rpart( 
+                  formula = HighwayMPG ~ Retail + Dealer + Engine + Cylinders + 
+                    Horsepower + Weight + Wheelbase + Length + Width,
+                  method ="anova", 
+                  data = cars04.train.data)
+# Look at regression tree 
+reg.tree.fit
+```
+
+The output tells us that there are 310 observations in the Root branch 310 observations with SSE = 10023 and a HighwayMPG prediction of 27.22. 
+The First split happens on the Horsepower variable. The number of observations i.e. cars with a Horsepower >= 147.5 is  260 and the SSE = 3489 and HighwayMPG prediction = 25.56 for this branch. This means that Horsepower is the variable having the most important reduction in SSE, then it's Engine. 
+The second most important variable is Weight and so on. 
+
+The tree can be plotted using base R or the rpart.plot and rattle packages as follow 
+
+```{r,warning = F}
+# Directly using base R 
+plot(reg.tree.fit, uniform=TRUE, 
+     main="Regression Tree for Highway Mileage")
+text(reg.tree.fit, use.n=TRUE, all=TRUE, cex=.8)
+# Using rpart package
+rpart.plot(reg.tree.fit)
+# Using the rattle packages 
+fancyRpartPlot(reg.tree.fit)
+```
+
+We can use this model to predict the HIghwayMPG on the test dataset and compared with the observed value. This is done as follows 
+
+```{r,warning = F}
+# Predict on test dataset 
+pred <- predict(reg.tree.fit, newdata = cars04.test.data)
+RMSE(pred = pred, obs = cars04.test.data$HighwayMPG)
+```
+
+Often a balance needs to be found in the depth and complexity of the tree to optimize predictive performance on unseen data. This is done by pruning the tree. The package rpart is actually behind the scene already aplying a cost complexity alpha values to prune the tree. It is performing a 10 fold CV on the training dataset to decide the optimal value of alpha i.e. the value of alpha for which the CV error is minimal. In our example, the tree was pruned to have 9 leaves i.e. 9 leaves was found to be the size of the tree for which the CV error is minimal. The dashed line indicates the 1 standard deviation of the minimum CV error. In practice it is common to use a tree with the minimum size within 1 standard deviation of the minimum CV error. 
+
+Let's force rpart to generate the full tree (no penalty done i.e. no pruning)
+
+```{r,warning = F}
+# Force rpart to generate a full tree with no penalty 
+reg.tree.fit2 <- rpart(
+  formula = HighwayMPG ~ Retail + Dealer + Engine + Cylinders + 
+    Horsepower + Weight + Wheelbase + Length + Width,
+  data    = cars04.train.data,
+  method  = "anova", 
+  control = list(cp = 0)
+)
+fancyRpartPlot(reg.tree.fit2)
+plotcp(reg.tree.fit2)
+abline(v = 9, lty = "dashed")
+```
+
+If we were to predict with this tree the HighwayMPG on the testd dataset 
+
+```{r,warning = F}
+# Predict on test dataset 
+pred <- predict(reg.tree.fit2, newdata = cars04.test.data)
+RMSE(pred = pred, obs = cars04.test.data$HighwayMPG)
+```
+
+In addition to the cost complexity parameter, one can tune other parameters e.g. minsplit and maxdepth using the control arguments of rpart.
+
+* minsplit: Set the minimum number of observations in the node before the algorithm perform a split
+* maxdepth: Set the maximum depth of any node of the final tree. The root node is treated a depth 0
+
+One can manually tune these parameters and assess the performance of your model. But this might be cumbersome, instead one can make a grid search. 
+
+```{r,warning = F}
+# Make a grid to search 
+hypergrid <- expand.grid(
+  minsplit = seq(5, 20, 1),
+  maxdepth = seq(3, 9, 1)
+)
+head(hypergrid) # head of the grid 
+nrow(hypergrid) # total number of combinations 
+# One model for each hyperparameter combination 
+models <- list()
+for (i in 1:nrow(hypergrid)) {
+  # get minsplit, maxdepth values at row i
+  minsplit <- hypergrid$minsplit[i]
+  maxdepth <- hypergrid$maxdepth[i]
+  # train a model and store in the list
+  models[[i]] <- rpart(
+    formula = HighwayMPG ~ Retail + Dealer + Engine + Cylinders + 
+      Horsepower + Weight + Wheelbase + Length + Width,
+    data    = cars04.train.data,
+    method  = "anova",
+    control = list(minsplit = minsplit, maxdepth = maxdepth)
+  )
+}
+# function to get optimal cp
+getcp <- function(x) {
+  min    <- which.min(x$cptable[, "xerror"])
+  cp <- x$cptable[min, "CP"] 
+}# function to get minimum error
+getminerror <- function(x) {
+  min    <- which.min(x$cptable[, "xerror"])
+  xerror <- x$cptable[min, "xerror"] 
+}
+
+hypergrid_min <- hypergrid %>%
+  mutate(
+    cp    = purrr::map_dbl(models, getcp),
+    error = purrr::map_dbl(models, getminerror)
+  ) %>%
+  arrange(error) %>%
+  top_n(-5, wt = error)
+hypergrid_min
+# Optimal Model 
+reg.tree.fit.opt <- rpart(
+  formula = HighwayMPG ~ Retail + Dealer + Engine + Cylinders + 
+    Horsepower + Weight + Wheelbase + Length + Width,
+  data    = cars04.train.data,
+  method  = "anova", 
+  control = list(minsplit = 10, maxdepth = 9, cp = 0.01)
+)
+# Predict on test dataset 
+pred <- predict(reg.tree.fit.opt, newdata = cars04.test.data)
+RMSE(pred = pred, obs = cars04.test.data$HighwayMPG)
+```
+
+## Classification Tree 
+
+```{r,warning = F}
+# Grow tree 
+tree.fit <- rpart(Sports ~ Retail + Dealer + Engine + Cylinders + Horsepower + CityMPG + HighwayMPG + Weight + Wheelbase + Length + Width,
+             method="class", data = cars04.train.data)
+# Look at output
+tree.fit
+# plot tree 
+# Directly using base R 
+plot(tree.fit, uniform=TRUE, 
+     main="Classification Tree for Sports")
+text(tree.fit, use.n=TRUE, all=TRUE, cex=.8)
+# Using rpart package
+rpart.plot(tree.fit)
+# Using the rattle packages 
+fancyRpartPlot(tree.fit)
+# display the results 
+printcp(tree.fit) 
+# visualize cross-validation results 
+plotcp(tree.fit) 
+# detailed summary of splits
+summary(tree.fit) 
+# make predictions from the tree
+tree.pred <- predict(tree.fit, cars04.test.data, type = "class")
+cars04.test.data.pred <- cars04.test.data %>% mutate(Sports.pred = tree.pred)
+# Performance 
+tab <- table(cars04.test.data.pred$Sports, cars04.test.data.pred$Sports.pred)
+tab
+# Sensitivity TP/(TP + FN)
+tab[2,2]/(tab[2,2] + tab[2,1])
+# Specificity  TN/(TN + FP)
+tab[1,1]/(tab[1,1] + tab[1,2])
+# Precision TP/predicted yes.
+tab[2,2]/(tab[2,2] + tab[1,2])
+# Accuracy (TP + TN)/(All)
+(tab[2,2] + tab[1,1])/(tab[2,2] + tab[1,1] + tab[1,2] + tab[2,1])
+```
+
+# Bagging 
+
+Bagging combines and averages multiple models. 
+Averaging across multiple trees reduces the variability of any one tree and reduces overfitting, which improves predictive performance.
+Steps: 
+
+* Create m bootstrapped samples from the training data
+* For each bootstrapped sample train, make an unprunned tree model
+* Average the prediction for each tree to create an overall average
+
+Bagging will be implemented with the ipred and caret package. 
+
+```{r,warning = F}
+# train bagged model
+bagged.reg.tree.fit <- bagging(
+  formula = HighwayMPG ~ Retail + Dealer + Engine + Cylinders + 
+    Horsepower + Weight + Wheelbase + Length + Width,
+  data    = cars04.train.data,
+  coob    = TRUE
+)
+bagged.reg.tree.fit
+# By default the number of trees used is 25 but this might not be enough
+# assess 10-50 bagged trees
+ntree <- 10:50
+# create empty vector to store OOB RMSE values
+rmse <- vector(mode = "numeric", length = length(ntree))
+
+for (i in seq_along(ntree)) {
+  # reproducibility
+  set.seed(123)
+  
+  # perform bagged model
+  model <- bagging(
+    formula = HighwayMPG ~ Retail + Dealer + Engine + Cylinders + 
+      Horsepower + Weight + Wheelbase + Length + Width,
+    data    = cars04.train.data,
+    coob    = TRUE,
+    nbagg   = ntree[i]
+  )
+  # get OOB error
+  rmse[i] <- model$err
+}
+plot(ntree, rmse, type = 'l', lwd = 2)
+abline(v = 48, col = "red", lty = "dashed")
+# Use 45 trees instead of 25
+opt.bagged.reg.tree.fit <- bagging(
+  formula = HighwayMPG ~ Retail + Dealer + Engine + Cylinders + 
+    Horsepower + Weight + Wheelbase + Length + Width,
+  data    = cars04.train.data,
+  coob    = TRUE,
+  nbagg = 48
+)
+opt.bagged.reg.tree.fit
+```
+
+# Boosting 
+
+Several supervised machine learning models are founded on a single predictive model (i.e. linear regression, penalized models, naive Bayes, support vector machines). Alternatively, other approaches such as bagging and random forests are built on the idea of building an ensemble of models where each individual model predicts the outcome and then the ensemble simply averages the predicted values. The family of boosting methods is based on a different, constructive strategy of ensemble formation.
+The main idea of boosting is to add new models to the ensemble sequentially. At each particular iteration, a new weak, base-learner model is trained with respect to the error of the whole ensemble learnt so far.
