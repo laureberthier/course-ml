@@ -1,0 +1,617 @@
+---
+title: "PCA Algorithm"
+author: "LAEB"
+date: "30-10-2019"
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    toc_depth: 2
+  word_document:
+    toc: yes
+    toc_depth: '2'
+---
+
+\newpage
+
+
+
+\newpage
+
+# Introduction 
+
+Let $n$ be the number of observations in the sample data. Let $m$ be the number of initial features/attributes used to describe the data. 
+Let $\vec{x}_1, ..., \vec{x}_n$ be the sample data of vectors in $\mathbb{R}^m$. Let $X$ be the $m \times n$ matrix where each feature/attribute corresponds to a row and each observation corresponds to a column of X  
+$$X = \begin{pmatrix} \vec{x}_1 ... \vec{x}_n \end{pmatrix}$$
+
+## Pre processing of the data 
+
+Centering the data 
+
+Suppose the data has been centered i.e. $\sum \limits_i^n \vec{x}_i = \vec{0}$. If the data is not centered, we center it by replacing $x_i$ by $x_i - \vec{\mu}$ where $\vec{\mu}$ in $\mathbb{R}^m$ is defined by  
+$$\vec{\mu} = \frac{1}{n} \sum \limits_{i = 1}^{n} \vec{x}_i$$
+Rescaling the data 
+
+Rescaling the data is not necessary but should be done if attributes/features are expressed in very different units. If the data is expressed in different units, we compute 
+$$ s^{j} = \frac{1}{n - 1} \sum \limits_{i = 1}^n (x_i^j - \mu^j)^2 $$ 
+and we replace the original $x_i^j$ by $x_i^j/s^j$ 
+
+If we want to center and rescale the data, the original $x_i^j$ should be replaced by 
+$$\frac{x_i^j - \mu^j}{s^j}$$
+
+## Goal
+
+We'd like to find the $q$ unit vectors $\vec{u}_1,..,\vec{u}_q \in \mathbb{R}^m$ with $q < \text{min}(n,m)$ that transform the sample data vectors as 
+$$ \vec{y}_i = U^T \vec{x}_i = \begin{pmatrix} \vec{u}_1^T \vec{x}_i \\ . \\ . \\  \vec{u}_q^T \vec{x}_i \end{pmatrix} = \begin{pmatrix} y_i^1 \\ . \\ . \\ y_i^q \end{pmatrix}$$ 
+where $U$ is the $m \times q$ matrix
+$$ U = (\vec{u}_1... \vec{u}_q)$$
+such that 
+
+* Decorrelation of the new coordinates 
+
+the new coordinates are decorrelated i.e. $\text{cov}(y^i, y^j) = 0$ for all $i,j \in [1,q]$ and $i \neq j$.
+
+* Maximization of the variance of the new coordinates 
+
+the variance of the sample data is maximized after being projected onto the new axes vectors. 
+
+## Mathematical Derivation
+
+Let us assume first $q = 1$ i.e. the $m$ components of the vectors $x_i$ will be reduced to a single output component 
+$$ y_i^1 = \vec{u}_1^T \vec{x}_i$$
+where $\vec{u}_1$ is such that it is solution to 
+$$ \text{max}_{\vec{u}_1}\left(\frac{1}{2} \sum \limits_{i = 1}^n (y_i^1)^2 \right) = \text{max}_{\vec{u}_1}\left(\frac{1}{2} ||\vec{u}_1^T X||^2  \right)$$
+subject to 
+$$\vec{u}_1^T \vec{u}_1 = 1$$
+The Lagrangian of the problem is 
+$$ L(\vec{u}_1, \lambda_1) = \frac{1}{2} \vec{u}_1^TXX^T\vec{u}_1 -\frac{\lambda_1}{2} ( \vec{u}_1^T \vec{u}_1 - 1) $$
+The vector $\vec{u}_1$ is solution of 
+$$ \frac{\partial L}{\partial \vec{u}_1 } = 0  $$
+which is equivalent to 
+$$ XX^T \vec{u}_1 = \lambda_1 \vec{u}_1$$
+i.e. $\vec{u}_1$ is an eigenvector of the matrix $XX^T$. Since $XX^T$ is symmetric positive definite, it is diagonalized with positive eigenvalues. Since we want $\frac{1}{2} ||\vec{u}_1^T X||^2 = \frac{1}{2} \vec{u}_1^T XX^T \vec{u}_1 = \frac{1}{2} \lambda_1 \vec{u}_1^T \vec{u}_1 = \frac{1}{2} \lambda_1$ to be maximal for $\vec{u}_1$, we take $\vec{u}_1$ to be the eigenvector of $XX^T$ with the highest eigenvalue. 
+
+Now, we look for $\vec{u}_2$ which is such that the new coordinates $y^1$ and $y^2$ are decorrelated i.e. 
+$$ \text{Cov}(y^1,y^2)  = 0$$
+Since one can re-write the covarienace between $y^1$ and $y^2$ as
+$$ \sum \limits_{i = 1}^n y_i^1y_i^2 = \sum \limits_{i = 1}^n (\vec{u}_1^T \vec{x}_i)(\vec{u}_2^T \vec{x}_i) = \sum \limits_{i = 1}^n (\vec{u}_1^T \vec{x}_i)(\vec{u}_2^T \vec{x}_i)^T = \vec{u}_1^T XX^T \vec{u}_2 = \vec{u}_2^T XX^T\vec{u}_1 = \lambda_1 \vec{u}_2^T \vec{u}_1  $$
+we are looking for the vector $\vec{u}_2$ that is solution to  
+$$ \text{max}_{\vec{u}_2}\left(\frac{1}{2} \sum \limits_{i = 1}^n (y_i^2)^2 \right) = \text{max}_{\vec{u}_2}\left(\frac{1}{2} ||\vec{u}_2^T X||^2  \right)$$
+subject to 
+$$\vec{u}_2^T \vec{u}_2 = 1, \hspace{2cm} \vec{u}_1^T \vec{u}_2 = 0  $$
+The Lagrangian is now 
+$$ L(\vec{u}_2,\lambda_2, \delta_2) = \frac{1}{2} \vec{u}_2^T X X^T \vec{u}_2 - \frac{\lambda_2}{2}(\vec{u}_2^T \vec{u}_2 - 1) - \delta_2 \vec{u}_1^T \vec{u}_2 $$
+By taking the partial derivative with respect to $\vec{u}_2$ we obtain 
+$$ XX^T \vec{u}_2 - \lambda_2 \vec{u}_2 - \delta_2 \vec{u}_1 = 0  $$
+By multiplying by $\vec{u}_1^T$, one get 
+$$ \vec{u}_1^T XX^T \vec{u}_2 - \delta_2 = 0 $$
+and since $\vec{u}_1^T XX^T \vec{u}_2 = 0$ from requiring $y^1,y^2$ to be decorrelated, this means that $\delta_2 = 0$ and thus 
+$$ XX^T \vec{u}_2 = \lambda_2 \vec{u}_2 $$
+i.e. $\vec{u}_2$ is eigenvector of $XX^T$ with eigenvalue $lambda_2$ with $\lambda_2$ being the largest from the remaining eigenvalue of $XX^T$. 
+
+By induction, PCA is the solution to the following optimization 
+$$ \text{max}_{\vec{u}_1,...,\vec{u}_q}\left( \frac{1}{2} \sum \limits_{i} ||\vec{u}_i^T X ||^2 \right) $$
+subject to 
+$$ \vec{u}_i^T \vec{u}_i = 1, \hspace{2cm} \vec{u}_i^T\vec{u}_j = 0, \hspace{1cm} i \neq j = 1,...,q  $$
+
+\newpage 
+
+# PCA Implementation in R 
+
+There are two ways of performing a PCA 
+
+* Spectral decompostion which examines the covariance between features  
+* Singular Value decomposition which examines covariance between individuals 
+
+There are several functions from different packages for performing a PCA in R
+
+* The functions prcomp() and princomp() from the built-in R stats package
+* PCA() from FactoMineR package. 
+* dudi.pca() from ade4 package. 
+
+In the following, we will be using the prcomp() and princomp() functions from the built-in R stats package. The function princomp() uses the spectral decomposition approach whereas the function prcomp() uses the singular value decomposition approach. Since the singular value decomposition has a better numerical accuracy compared to the spectral decomposition, it will be the preferred approach.
+
+The package factoextra will be loaded for visualizing the PCA results. The latter requires the ggplot2 package to be loaded too. 
+
+```{r,warning = F}
+## Load library 
+library(ggplot2) # for being able to load factoextra
+library(factoextra) # for visualizing the PCA's reuslts
+library(dplyr)
+library(kernlab) # for kernel pca
+```
+
+The dataset to be used for PCA is imported. Detailed documentation about the dataset to be used can be found here: http://jse.amstat.org/datasets/04cars.txt It contains data about 428 cars or trucks. The dataset has one row per car i.e. a total of 428 rows and 19 variables. The variables specified include the vehicle name (variables sports car, sport utility vehicle, wagon, minivan, pickup, all-wheel drive, rear wheel drive), the retail price, dealer cost, engine size, number of cylinders, horsepower, city miles per gallon, highway miles per gallon, weight, wheelbase, length and width.  
+
+```{r,warning = F}
+## Import dataset 
+cars04  <- readRDS(file = 
+'~/birwe_data/Data/playground/prepared-zone/methods-and-libraries/ml-reading-course/cars04.RData')
+## Look at dataset
+str(cars04)
+summary(cars04)
+head(cars04)
+``` 
+
+A PCA will be performed using the function prcomp(). The prcomp() function can be used by default as follow: prcomp(x, center = TRUE, scale. = FALSE, retx = TRUE,...) where 
+
+* x is a numeric or complex matrix/data frame containing only the initial features rotate
+* center is a logical value indicating whether the initial variables/features should be shifted to be zero centered
+* scale. is a logical value indicating whether the initial variables should be scaled to have unit variance before the analysis is performed. Rescaling, i.e. setting scale. = TRUE, should be done if the initial variables have different units.
+* retx is a logical value indicating whether the rotated variables should be returned
+
+
+By looking at the PCA object generated, one can understand what are the values returned by the PCA function
+
+* sdev: standard deviation of the principal components i.e. square roots of the covariance matrix
+* rotation: loading matrix i.e. matrix whose columns are the eigenvectors of the covariance matrix
+* center, scale: the centering and scaling used if center and scale. were set to TRUE in the arguments of the function
+* x: the matrix of the rotated data (centered and scaled data if requested multiplied by the rotation matrix)
+
+```{r,warning = F}
+## Perform a pca using prcomp 
+cars04.pca = prcomp(cars04[,8:18], center = TRUE, scale.=TRUE, retx = TRUE)
+## PCA object 
+str(cars04.pca)
+```
+
+\newpage
+
+## Variances of the principal components 
+
+The variances of the principal components are the eigenvalues of the covariance matrix i.e. the squared standard deviation of the principal components and can thus be obtained as follow
+
+```{r,warning = F}
+# Standard deviation of each PC
+cars04.pca$sdev # i.e. square root of the eigenvalue of the covariance matrix 
+# Eigenvalues of each PC i.e. variance retained 
+eig <- (cars04.pca$sdev)^2
+eig
+# Variance in percentage i.e. proportion of variance (also given in summary)
+variance <- eig*100/sum(eig)
+variance
+# Cumulative variances in percentage (also given in the summary)
+cumvar <- cumsum(variance)
+cumvar
+# Data frame with eigenvalues, variance, and cumulative variance
+eig.cars04 <- data.frame(eig = eig, variance = variance,
+                                    cumvariance = cumvar)
+eig.cars04
+```
+
+There are 11 principal components PC1-11 each of which explains a certain percentage of the total variance in the dataset. PC1 explains nearly 65% of it, PC2 explains 17% of it etc. By knowing PC1 and PC2, 82% of the variance of the dataset is explained.
+Note that the standard deviation, variance and cumulative variance of the principal components can also be accessed from the summary of the PCA object or using the factoextra package as follow  
+
+```{r,warning = F}
+# Summary
+summary(cars04.pca)
+# or can be accessed using the factoextra package 
+eig.val <- get_eigenvalue(cars04.pca)
+head(eig.val)
+```
+
+The importance of PC can be visualized using a screeplot  i.e. bar plot of the variance for each dimension/PC with added connecting lines. The scree plot can be made using base R or using the factoextra package
+
+```{r,warning = F}
+## Scree Plot 
+# Using Base R 
+barplot(eig.cars04[, 2], names.arg=1:nrow(eig.cars04), 
+        main = "Variances",
+        xlab = "Principal Components",
+        ylab = "Percentage of variances",
+        col ="steelblue")
+# Add connected line segments to the plot
+lines(x = 1:nrow(eig.cars04), 
+      eig.cars04[, 2], 
+      type="b", pch=19, col = "red")
+# Using factoextra package 
+fviz_eig(cars04.pca)
+# Also possible to visualize the eigenvalues instead of the explained variance using factoextra 
+fviz_screeplot(cars04.pca, ncp=10, choice="eigenvalue")
+```
+
+To determine the number of dimensions/PC to retain, there exist several criteria
+
+* Kaiser Criterion: Keep PC with eigenvalue > 1 as this indicates that PCs account for more variance than accounted by one of the original variables in standardized data. This is commonly used as a cutoff point for which PCs are retained.
+* Elbow shape Criterion of the scree plot 
+* Criterion on the cumulative variance: limit the number of component to that number that accounts for a certain fraction of the total variance e.g. 80%
+
+In our case using Kaiser Criterion, the two first PC will be retained as these are the only principal components having eigenvalues above 1.
+
+\newpage
+
+## Graph of variables: the correlation circle 
+
+The loading matrix i.e. matrix of the eigenvectors of the covariance matrix expressed in terms of initial features can be generated as follow
+
+```{r,warning = F}
+## Loading or weight matrix
+round(cars04.pca$rotation[,],2)
+```
+
+From the loading matrix, one can see that all initial features have a negative projection on PC1 except gas mileage.
+The first principal component tells us about whether we are getting a big, expensive gas-guzzling car with a powerful engine, or whether we are getting a small, cheap, fuel-efficient car with a wimpy engine. PC1 ~ Engine size and gas. size vs. fuel efficiency 
+One can also notice that mileage hardly project on to PC2 at all. Instead we have a contrast between the physical size of the car (positive projection) and the price and horsepower. Basically, this axis separates mini-vans, trucks and SUVs (big, not so expensive, not so much horse-power) from sports-cars (small, expensive, lots of horse-power). PC2 ~ sporty vs boxy. 
+
+The correlation between variables and principal components can be visualized using the correlation circle. Each principal component is represented as an arrow whose coordinates are its correlations with PC1 and PC2. Correlation between variables and principal components are calculated as loadings multiplied by the principal components' standard deviations. 
+
+The correlation circle visualization can be made using base R as follow 
+
+```{r,warning = F}
+## Graph of variables: the correlation Circle
+# Correlation between variables and principal components
+var_cor_func <- function(var.loadings, comp.sdev){
+  var.loadings*comp.sdev
+}
+# Variable correlation/coordinates
+loadings <- cars04.pca$rotation
+sdev <- cars04.pca$sdev
+var.coord <- var.cor <- t(apply(loadings, 1, var_cor_func, sdev))
+head(var.coord[, 1:4])
+# Graph of variables using Base R 
+# Plot the correlation circle
+a <- seq(0, 2*pi, length = 100)
+plot( cos(a), sin(a), type = 'l', col="gray",
+      xlab = "PC1",  ylab = "PC2")
+# Plot axis
+abline(h = 0, v = 0, lty = 2)
+# Add active variables
+arrows(0, 0, var.coord[, 1], var.coord[, 2], 
+       length = 0.1, angle = 15, code = 2)
+# Add labels
+text(var.coord, labels=rownames(var.coord), cex = 1, adj=1)
+``` 
+
+or using the factoextra package 
+
+```{r,warning = F}
+# Using factoextra package 
+fviz_pca_var(cars04.pca)
+
+```
+
+The graph of variables, i.e. correlation circle, shows the relationships between all variables :
+
+* Positively correlated variables are grouped together.
+* Negatively correlated variables are positioned on opposite sides of the plot origin (opposed quadrants). 
+* The distance between variables and the origine measures the quality of the variables on the factor map. Variables that are away from the origin are well represented on the factor map.
+
+The two mileage variables are positioned on opposite quadrants compared to the other variables when looking at PC1. This means that the two mileage variables are negatively correlated to the other variables. This confirms our intuition about PC1 indicating whether a car is fuel efficient, small, cheap vs big, gazz guzzling, and expensive. The two milage variables are along the PC2 axis. The variables indicating the size of a car (wheelbase, width, length, weight, engine) are in opposite quadrant to the variables indicating the power (horsepower, cylinders) and price of the car (dealer and retail) meaning that these variables are negatively correlated. The PC2 thus represents whether a car is a sport car i.e. powerful and expensive, small vs. bulky i.e. not powerful, cheap and big. 
+
+The variable arrows can be colored according to the quality of representation (cos2) of the variables on the factor map. The quality of representation correspond to the squared coordinates (loading multiplied by standard deviation) of the variables. Using factoextra package, the color of variables on the correlation circle can be automatically controlled by the value of their cos2. On the plot below, the higher (resp. lower) the cos2 of the variable is, the more "red" (resp. "blue") the arrow is. 
+
+```{r,warning = F}
+## Quality of representation of the variables on the factor map 
+var.cos2 <- var.coord^2
+head(var.cos2[, 1:4])
+# Using factoextra package
+fviz_pca_var(cars04.pca, col.var="contrib")+
+scale_color_gradient2(low="white", mid="blue", 
+                      high="red", midpoint=8) + theme_minimal()
+```
+
+The contribution of a variable to a principal component can also be used instead of the quality of representation to color the arrows of the variables on the correlation circle. The contribution of a variable to a principal component is in percentage: (var.cos2 * 100) / (total cos2 of the component). Below, the correlation circle is given again with the variable arrows colored according to their contribution to PC2. 
+
+```{r,warning = F}
+## Contribution of variables to PC2
+comp.cos2 <- apply(var.cos2, 2, sum)
+comp.cos2
+contrib <- function(var.cos2, comp.cos2){var.cos2*100/comp.cos2}
+
+var.contrib <- t(apply(var.cos2,1, contrib, comp.cos2))
+head(var.contrib[, 1:4])
+# Highlight the most contributing variables to a PC2  
+fviz_pca_var(cars04.pca, col.var="contrib") +
+scale_color_gradient2(low="white", mid="blue", 
+                      high="red", midpoint=9) + theme_minimal()
+
+```
+
+\newpage
+
+## Graph of Individuals 
+
+The coordinates of the individuals on the principal components can be obtained easily from the PCA object as follow
+
+```{r,warning = F}
+## Graph of individuals 
+# Coordinates of individuals on the PC 
+ind.coord <- cars04.pca$x
+head(ind.coord[, 1:4])
+```
+
+The quality of representation for the individuals on the principal components can be calculated in 2 steps
+
+* Calculate the square distance between each individual and the PCA center of gravity
+
+$$ d2 = [(var1_{indi} - mean_{var1})/sd_{var1}]^2 + …+ [(var10_{indi} - mean_{var10})/sd_{var10}]^2 + …+..$$
+
+* Calculate cos2
+
+$$ cos2 = ind.coord^2/d2 $$
+
+The contribution of individuals (in percentage) to the principal components can then be computed as follow 
+
+$$ 100 * (1 / \text{number of individuals})*(ind.coord^2 / sdev_{PC}^2) $$
+
+```{r,warning = F}
+## Quality of representation for individuals on the principal components 
+center <- cars04.pca$center
+scale<- cars04.pca$scale
+# Compute d2
+getdistance <- function(ind_row, center, scale){
+  return(sum(((ind_row-center)/scale)^2))
+}
+d2 <- apply(eig.cars04,1,getdistance, center, scale)
+# Compute the cos2
+cos2 <- function(ind.coord, d2){return(ind.coord^2/d2)}
+ind.cos2 <- apply(ind.coord, 2, cos2, d2)
+head(ind.cos2[1:5, ])
+# Contributions of individuals to the principal components in percentage 
+contrib <- function(ind.coord, comp.sdev, n.ind){
+  100*(1/n.ind)*ind.coord^2/comp.sdev^2
+}
+
+ind.contrib <- t(apply(ind.coord,1, contrib, 
+                       cars04.pca$sdev, nrow(ind.coord)))
+head(ind.contrib[, 1:4])
+```
+
+The individual graph can be made either using base R or the factoextra package. Each individual is represented as a text (e.g. name of the individual car) centered around a point whose coordinates are the individual coordinates on PC1 and PC2. The individuals (i.e. texts) can then be colored according to the individual represnetation (cos2) or the contribution of the individuals to the principal components using the factoextra package in a similar way as for the variable graph 
+
+```{r,warning = F}
+## Individual Graph using Base R
+plot(ind.coord[,1], ind.coord[,2], pch = 19,  
+     xlab="PC1",ylab="PC2")
+abline(h=0, v=0, lty = 2)
+text(ind.coord[,1], ind.coord[,2], labels=rownames(ind.coord),
+     cex=0.7, pos = 3)
+## Using factoextra package 
+fviz_pca_ind(cars04.pca)
+fviz_pca_ind(cars04.pca, col.ind="cos2") +
+  scale_color_gradient2(low="white", mid="blue", 
+                        high="red", midpoint=0.50) + theme_minimal()
+
+```
+
+```{r,warning = F}
+## Subset of the data 
+ind.coord.sub1 <-ind.coord[grep("Chrysler", row.names(ind.coord)),]
+ind.coord.sub3 <-ind.coord[grep("Jaguar", row.names(ind.coord)),]
+ind.coord.sub2 <-ind.coord[grep("Honda", row.names(ind.coord)),]
+ind.coord.sub4 <-ind.coord[grep("Audi", row.names(ind.coord)),]
+ind.coord.sub5 <-ind.coord[grep("Ford", row.names(ind.coord)),]
+
+ind.coord.sub <- rbind(ind.coord.sub1,ind.coord.sub3)
+ind.coord.sub_2 <- rbind(ind.coord.sub2,ind.coord.sub4, ind.coord.sub5)
+## Individual Graph using Base R on a subset
+plot(ind.coord.sub[,1], ind.coord.sub[,2], pch = 19,  
+     xlab="PC1",ylab="PC2")
+abline(h=0, v=0, lty = 2)
+text(ind.coord.sub[,1], ind.coord.sub[,2], labels=rownames(ind.coord.sub),
+     cex=0.7, pos = 3)
+## Individual Graph using Base R on a subset
+plot(ind.coord.sub_2[,1], ind.coord.sub_2[,2], pch = 19,  
+     xlab="PC1",ylab="PC2")
+abline(h=0, v=0, lty = 2)
+text(ind.coord.sub_2[,1], ind.coord.sub_2[,2], labels=rownames(ind.coord.sub_2),
+     cex=0.7, pos = 3)
+
+
+```
+
+\newpage 
+
+## Biplots 
+
+The variable and individual graphs can be combined in one plot called the biplot. The biplot can be visualized using Base R or the factoextra package.
+
+```{r,warning = F}
+## Biplot of individuals and variables using Base R
+biplot(cars04.pca,cex=0.4)
+## Biplot using the factoextra package 
+fviz_pca_biplot(cars04.pca,  geom = "text") +
+  theme_minimal()
+```
+
+\newpage
+
+## Predicting using principal components  
+
+The variables not used for PCA, that we will call supplementary variables, are saved in another dataset and correlations between these supplementary variables and the principal components are derived and visualized on the correlation circle plot. 
+
+```{r,warning = F}
+# Supplementary variables not used in PCA
+ind.supp <- cars04[, 1:7, drop = FALSE]
+head(ind.supp)
+# Calculate the correlations between supplementary variables
+# and the principal components
+ind.coord <- cars04.pca$x
+quanti.coord <- cor(ind.supp, ind.coord)
+head(quanti.coord[, 1:4])
+# Plot the correlation circle using factoextra 
+# Plot of active variables
+p <- fviz_pca_var(cars04.pca)
+p
+# Add supplementary active variables
+fviz_add(p, quanti.coord, color ="blue", geom="arrow")
+# get the cos2 of the supplementary quantitative variables
+(quanti.coord^2)[, 1:4]
+```
+
+We now make two logistic regression models to predict whether a car is a sports car or not. The first model uses all features available about the cars, the second model only uses PC1 and PC2. We compare the performances of these models.  
+
+
+```{r,warning = F}
+## Baseline Model
+# we know sports car are less common 
+table(cars04$Sports)
+# Accuracy of the baseline model
+342/387
+```
+
+```{r,warning = F}
+## Splitting the data into a train and test set 
+# Load package
+library(caret) # training/test sets
+# Set seed
+set.seed(123)
+# Do the split
+cars04.sub <- cars04  %>% 
+  select(-c("SUV","Wagon","Minivan","Pickup","AWD","RWD"))
+training.sample <- cars04.sub$Sports %>% createDataPartition(p = 0.8, list = FALSE)
+cars04.train.data  <- cars04.sub[training.sample, ]
+cars04.test.data <- cars04.sub[-training.sample, ]
+# Check rows of the train and test datasets
+nrow(cars04.train.data)
+nrow(cars04.test.data)
+# First rows of the train and test datasets 
+head(cars04.train.data)
+head(cars04.test.data)
+## Perform a pca using prcomp only on train data set 
+cars04.train.data.pca = prcomp(cars04.train.data[,2:12], center = TRUE, scale.=TRUE, retx = TRUE)
+ind.sub.coord <- cars04.train.data.pca$x
+## Add ind.sub.coord to dataset 
+cars04.train.data.new <- cbind(cars04.train.data,ind.sub.coord)
+cars04.train.data <- cars04.train.data.new
+```
+
+```{r,warning = F}
+## Logistic Regression using initial features
+model1 = glm(Sports ~ Retail + Dealer + Engine + Cylinders + 
+               Horsepower + CityMPG + HighwayMPG + Weight +
+               Wheelbase + Length + Width,
+             data=cars04.train.data, family=binomial)
+summary(model1)
+## Making Predictions on the train set 
+# Make predictions 
+predictTrain = predict(model1, type="response")
+# Summary 
+summary(predictTrain)
+tapply(predictTrain, cars04.train.data$Sports, mean)
+# Confusion matrix for threshold of 0.5
+tab1 <- table(cars04.train.data$Sports, predictTrain > 0.5)
+tab1
+# Sensitivity TP/(TP + FN)
+tab1[2,2]/(tab1[2,2] + tab1[2,1])
+# Specificity  TN/(TN + FP)
+tab1[1,1]/(tab1[1,1] + tab1[1,2])
+# Precision TP/predicted yes.
+tab1[2,2]/(tab1[2,2] + tab1[1,2])
+# Accuracy (TP + TN)/(All)
+(tab1[2,2] + tab1[1,1])/(tab1[2,2] + tab1[1,1] + tab1[1,2] + tab1[2,1])
+```
+
+```{r,warning = F}
+## Logistic Regression using PC1 and PC2 
+model2 = glm(Sports ~ PC1 + PC2 ,data=cars04.train.data, family=binomial)
+summary(model2)
+## Making Predictions on the train set
+# Make predictions 
+predictTrain2 = predict(model2, type="response")
+# Summary 
+summary(predictTrain2)
+tapply(predictTrain2, cars04.train.data$Sports, mean)
+# Confusion matrix for threshold of 0.5
+tab2 <- table(cars04.train.data$Sports, predictTrain2 > 0.5)
+tab2
+# Sensitivity TP/(TP + FN)
+tab2[2,2]/(tab2[2,2] + tab2[2,1])
+# Specificity  TN/(TN + FP)
+tab2[1,1]/(tab2[1,1] + tab2[1,2])
+# Precision TP/predicted yes.
+tab2[2,2]/(tab2[2,2] + tab2[1,2])
+# Accuracy (TP + TN)/(All)
+(tab2[2,2] + tab2[1,1])/(tab2[2,2] + tab2[1,1] + tab2[1,2] + tab2[2,1])
+```
+
+```{r,warning = F}
+## For fun: Logistic Regression using PC6 and PC7
+# How bad can it be? 
+model3 = glm(Sports ~ PC6 + PC7 ,data=cars04.train.data, family=binomial)
+summary(model3)
+## Making Predictions on the train set
+# Make predictions 
+predictTrain3 = predict(model3, type="response")
+# Summary 
+summary(predictTrain3)
+tapply(predictTrain3, cars04.train.data$Sports, mean)
+# Confusion matrix for threshold of 0.5
+tab3 <- table(cars04.train.data$Sports, predictTrain3 > 0.5)
+tab3
+# Sensitivity TP/(TP + FN)
+tab3[2,2]/(tab3[2,2] + tab3[2,1])
+# Specificity  TN/(TN + FP)
+tab3[1,1]/(tab3[1,1] + tab3[1,2])
+# Precision TP/predicted yes.
+tab3[2,2]/(tab3[2,2] + tab3[1,2])
+# Accuracy (TP + TN)/(All)
+(tab3[2,2] + tab3[1,1])/(tab3[2,2] + tab3[1,1] + tab3[1,2] + tab3[2,1])
+```
+
+```{r,warning = F}
+# Install and load ROCR package
+library(ROCR)
+# Model 1 using all initial features
+# ROC predictions 
+ROCRpred1 = prediction(predictTrain, cars04.train.data$Sports)
+# Performance function
+ROCRperf1 = performance(ROCRpred1, "tpr", "fpr")
+# Plot ROC curve
+plot(ROCRperf1, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+# Model 2 using only PC1 and PC2
+# ROC predictions 
+ROCRpred2 = prediction(predictTrain2, cars04.train.data$Sports)
+# Performance function
+ROCRperf2 = performance(ROCRpred2, "tpr", "fpr")
+# Plot ROC curve
+plot(ROCRperf2, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+```
+
+```{r,warning = F}
+## Logistic Regression using PC1 and PC2 
+# Picking a better threshold
+# Confusion matrix for threshold of 0.2
+tab2new <- table(cars04.train.data$Sports, predictTrain2 > 0.2)
+tab2new
+# Sensitivity TP/(TP + FN)
+tab2new[2,2]/(tab2new[2,2] + tab2new[2,1])
+# Specificity  TN/(TN + FP)
+tab2new[1,1]/(tab2new[1,1] + tab2new[1,2])
+# Precision TP/predicted yes.
+tab2new[2,2]/(tab2new[2,2] + tab2new[1,2])
+# Accuracy (TP + TN)/(All)
+(tab2new[2,2] + tab2new[1,1])/(tab2new[2,2] + tab2new[1,1] + tab2new[1,2] + tab2new[2,1])
+```
+
+\newpage
+
+# Kernel PCA implementation in R 
+
+```{r,warning = F}
+# Kernel pca
+cars04.kpca <- kpca(as.matrix(cars04[,8:18]), kernel = "rbfdot", kpar = list(sigma = 0.1),
+    features = 0, th = 1e-4)
+# Object 
+str(cars04.kpca)
+```
+
+# Application in Lundbeck 
+
+## Already existing applications 
+
+Here are two examples were PCA was used in Lu, Biometrics. 
+
+* Example 1 
+
+PCA together with factor analysis was used by Anne (HEE) to identify a separate “brightening” dimension based on placebo-controlled trials, primarily in schizophrenia via PANSS, but also in adjunct MDD using the IDS-SR scale. The lists of the believed "brightening" items of the PANSS  and the IDS-SR were provided to Anne. A PCA was performed on the PANSS item data, using Kaiser criterion, 7 principal components were retained. The brightening items were found to cluster when plotting the loadings of the items on the two first principal components. Similar findings were found in MDD using the IDS-SR scale. 
+
+* Example 2
+
+PCA was used in the trial complexity model of the SiteIQ tool. A term frequency inverse document frequency (TFIDF) was first used on the protocol documents. The TFIDF produces a table with the 100,000 words most used in the protocol document with their frequency in the document reweighted by their prevalence. A PCA was then applied to identify colinearities between the words and reduce the dimension to 20 topics (linear combination of the initial words). A random forest was then applied to predict the average number of enrolled patients per site per month for a given trial given its vector of trial features (principal components) derived from the protocol synopsis. The model was trained on the Informa/Citeline data and used for prediction on Lundbeck Data 
+    
+\newpage 
+
+## New applications? 
